@@ -90,6 +90,16 @@ worker count from 8, and `--limit` to try a handful of passages before
 committing to the full run.
 
 ```
+just smoke
+```
+
+Trains on 20 examples for one epoch. The check is whether the model loads
+and takes a step at all, which is the open question for this architecture.
+Both Gemma 4 sizes carry Per-Layer Embedding tables, so a failure there is
+not fixed by changing size, and the answer would be Unsloth or a different
+model family.
+
+```
 just train
 ```
 

@@ -17,6 +17,7 @@ from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
 DEFAULT_MODEL = "google/gemma-4-E4B-it"
+SMOKE_EXAMPLES = 20
 
 # The Per-Layer Embedding tables are lookup tables rather than transforms, so
 # naming the projections keeps rank where it can change the model's behavior.
@@ -71,9 +72,13 @@ def build_trainer(
     epochs: int,
     learning_rate: float,
     rank: int,
+    smoke: bool = False,
 ) -> SFTTrainer:
     train_dataset = load_dataset("json", data_files=str(data_dir / "train.jsonl"), split="train")
     eval_dataset = load_dataset("json", data_files=str(data_dir / "valid.jsonl"), split="train")
+    if smoke:
+        train_dataset = train_dataset.select(range(min(SMOKE_EXAMPLES, len(train_dataset))))
+        eval_dataset = eval_dataset.select(range(min(SMOKE_EXAMPLES, len(eval_dataset))))
     return SFTTrainer(
         model=model,
         args=training_config(output_dir, epochs, learning_rate),
@@ -91,6 +96,11 @@ def main() -> None:
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--lora-rank", type=int, default=32)
+    parser.add_argument(
+        "--smoke",
+        action="store_true",
+        help="Train on a handful of examples to prove the model loads and steps.",
+    )
     args = parser.parse_args()
 
     trainer = build_trainer(
@@ -100,6 +110,7 @@ def main() -> None:
         args.epochs,
         args.learning_rate,
         args.lora_rank,
+        args.smoke,
     )
     trainer.train()
     trainer.save_model(str(args.output_dir))

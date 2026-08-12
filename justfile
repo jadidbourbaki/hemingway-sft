@@ -16,6 +16,10 @@ instructions *args:
 train *args:
     uv run hemingway-train {{ args }}
 
+# One epoch over 20 examples, to prove the model loads and steps before a real run.
+smoke *args:
+    uv run hemingway-train --smoke --epochs 1 {{ args }}
+
 # Compare the adapter against the base model on unseen prompts.
 evaluate *args:
     uv run hemingway-evaluate {{ args }}
