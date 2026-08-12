@@ -28,6 +28,10 @@ evaluate *args:
 merge *args:
     uv run hemingway-merge {{ args }}
 
+# Push an artifact to the Hub with the notices Gemma requires. Needs a write token.
+publish *args:
+    uv run hemingway-publish {{ args }}
+
 # Format with ruff.
 fmt:
     uv run ruff format .

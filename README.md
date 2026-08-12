@@ -140,6 +140,41 @@ The 14.9GiB transfer is the slow part. Quantizing on the host first is
 possible, though MLX is Apple-only, so the conversion has to happen on the
 Mac either way.
 
+## Publishing it
+
+```
+just publish --source runs/hemingway-e4b --repo jadidbourbaki/iceberg-1
+```
+
+Writes a model card and a NOTICE file into the source directory, creates the
+repository if it does not exist, and uploads the folder. Point `--source` at
+the adapter directory or the merged one. The card adapts to whichever it
+finds, by looking for `adapter_config.json` rather than taking a flag, so an
+adapter gets `library_name: peft` and peft usage while merged weights get
+plain transformers usage.
+
+Uploading needs a Hugging Face token with write access, which is the first
+point in this project that requires credentials. Downloading Gemma needs
+none, since the repositories are ungated.
+
+Section 3.1 of the Gemma Terms of Use attaches four conditions to
+distributing a derivative. Every recipient gets the agreement, which the
+`license: gemma` declaration carries. The Section 3.2 use restrictions pass
+forward, which the card states. Modified files carry a modification notice,
+which the card states. A NOTICE file ships with the exact required sentence,
+which `publish.py` writes. Generating those from code keeps a hand-rolled
+upload from dropping one.
+
+`data/train.jsonl` is not published. The three training novels are public
+domain in the United States, and copyright in the European Union and the
+United Kingdom runs for the author's life plus 70 years, so they stay
+protected there until 2032. The dataset holds verbatim passages, the weights
+do not, and the dataset is reproducible from this repository with two
+commands.
+
+The card also records that 918 examples over three epochs is small enough for
+near-verbatim reproduction of training passages to be plausible.
+
 ## Which size
 
 Gemma 4 ships an E4B at 8.00B parameters and a 12B at 11.96B. E4B is the
