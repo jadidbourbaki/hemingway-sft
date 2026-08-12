@@ -165,6 +165,42 @@ def test_to_examples_pairs_each_instruction_with_its_passage() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Write a scene told in his terse first person.",
+        "Write two soldiers arguing in clipped dialogue.",
+        "Write a farewell, spare and understated.",
+        "Write a passage in Hemingway's voice.",
+        "Write a scene that imitates his prose style.",
+    ],
+)
+def test_mentions_style_catches_a_leaked_style_word(instruction: str) -> None:
+    assert reverse_instructions.mentions_style(instruction)
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Write a scene where a man sleeps in the spare room.",
+        "Write a scene where two men wait at a station in the rain.",
+        "Write a soldier clipping a wire fence in the dark.",
+    ],
+)
+def test_mentions_style_leaves_ordinary_requests_alone(instruction: str) -> None:
+    """Words that double as scene description must not cost a usable example."""
+    assert not reverse_instructions.mentions_style(instruction)
+
+
+def test_to_examples_drops_an_instruction_that_names_the_style() -> None:
+    passages = [passage("It rained."), passage("He waited.")]
+    examples = reverse_instructions.to_examples(
+        passages, {0: "Write it in terse prose.", 1: "Write a scene in the rain."}
+    )
+    assert len(examples) == 1
+    assert examples[0].completion[0].content == "He waited."
+
+
 def test_to_examples_drops_passages_whose_instruction_failed() -> None:
     passages = [passage("It rained."), passage("He waited.")]
     examples = reverse_instructions.to_examples(passages, {1: "second"})

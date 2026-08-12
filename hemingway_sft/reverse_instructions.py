@@ -14,6 +14,7 @@ neighbouring techniques it gets mistaken for.
 from __future__ import annotations
 
 import argparse
+import re
 import threading
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -30,19 +31,34 @@ DEFAULT_CONCURRENCY = 8
 MAX_TOKENS = 2048
 MAX_RETRIES = 5
 VALIDATION_STRIDE = 20
+TARGET_INSTRUCTION_WORDS = 20
 
-SYSTEM_PROMPT = """You read a passage from a novel and recover the instruction a \
-person would have typed to get it.
+SYSTEM_PROMPT = """You read a passage from a novel and recover the request that \
+would have produced it.
 
-Write the instruction so that:
+Write one sentence of at most 20 words. Name the situation and who is in it. \
+Someone who has never seen the passage should be able to act on the request.
 
-- It names the situation, the people, and the setting concretely, in one or two \
-imperative sentences.
-- It reads as an ordinary request for prose, with no mention of the author, the \
-book, or any quality of the writing style. An instruction that asks for terse \
-sentences or names Hemingway defeats the purpose, because the model must learn \
-the voice as its default rather than as a style it switches on when asked.
+Leave out the events, objects, and specifics the passage contains. A request \
+that summarises the passage teaches a model to expand an outline instead of to \
+write, and a person typing the request would not have known those specifics \
+either.
+
+Never name the author, the book, or any quality of the writing style. A request \
+asking for terse sentences would teach the voice as something to switch on when \
+asked rather than as a default.
 """
+
+
+# Roughly two percent of generated instructions describe the voice despite the
+# prompt forbidding it, and an instruction naming the style teaches the model to
+# switch it on when asked. Words that double as ordinary scene description, such
+# as "spare", stay out of the pattern.
+_STYLE_MENTION = re.compile(
+    r"\b(hemingway|terse|laconic|clipped|understated|minimalist|unadorned)\w*\b"
+    r"|\b(prose|writing) style\b",
+    re.I,
+)
 
 
 class ReverseInstruction(BaseModel):
@@ -141,6 +157,10 @@ def collect(
     return cached
 
 
+def mentions_style(instruction: str) -> bool:
+    return _STYLE_MENTION.search(instruction) is not None
+
+
 def to_examples(passages: list[Passage], instructions: dict[int, str]) -> list[TrainingExample]:
     return [
         TrainingExample(
@@ -148,8 +168,25 @@ def to_examples(passages: list[Passage], instructions: dict[int, str]) -> list[T
             completion=[ChatMessage(role="assistant", content=passage.text)],
         )
         for index, passage in enumerate(passages)
-        if index in instructions
+        if index in instructions and not mentions_style(instructions[index])
     ]
+
+
+def report_instruction_lengths(instructions: dict[int, str]) -> None:
+    """A run whose instructions drift long trains the model to expand outlines.
+
+    Prompts typed at inference are short, so a training instruction that
+    summarises its passage puts training and inference on different
+    distributions.
+    """
+    if not instructions:
+        return
+    lengths = sorted(len(text.split()) for text in instructions.values())
+    over = sum(1 for n in lengths if n > TARGET_INSTRUCTION_WORDS)
+    print(
+        f"instruction words: median {lengths[len(lengths) // 2]}, "
+        f"max {lengths[-1]}, {over} over {TARGET_INSTRUCTION_WORDS}"
+    )
 
 
 def write_jsonl(examples: Iterable[TrainingExample], path: Path) -> None:
@@ -178,6 +215,9 @@ def main() -> None:
         args.concurrency,
     )
     examples = to_examples(passages, instructions)
+    dropped = sum(1 for text in instructions.values() if mentions_style(text))
+    if dropped:
+        print(f"dropped {dropped} instructions that named the writing style")
 
     validation = examples[::VALIDATION_STRIDE]
     training = [e for i, e in enumerate(examples) if i % VALIDATION_STRIDE != 0]
@@ -186,6 +226,7 @@ def main() -> None:
 
     print(f"train: {len(training)} examples")
     print(f"valid: {len(validation)} examples")
+    report_instruction_lengths(instructions)
 
 
 if __name__ == "__main__":
