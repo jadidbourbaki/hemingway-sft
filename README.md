@@ -120,6 +120,38 @@ beside it and a six-prompt sample carries real noise.
 Read the samples. The numbers can look healthy while the prose is
 degenerate, and only the samples show that.
 
+## The GPU host
+
+Training and evaluation need one VM with one GPU. No cluster, no
+InfiniBand. Peak GPU memory is roughly 25 to 30GB, so an L40S at 48GB has
+comfortable headroom and an H100 at 80GB buys nothing at twice the rate.
+
+`infra/` holds a Terraform module for that instance. Provider credentials
+come from the `nebius` CLI profile, so no keys are configured here.
+
+```
+cd infra
+cp terraform.tfvars.example terraform.tfvars   # set ssh_public_key_path
+terraform init
+terraform apply
+```
+
+The module creates a 200GiB `NETWORK_SSD` boot disk from an Ubuntu 24.04
+CUDA image and one `gpu-l40s-a` instance on the `1gpu-16vcpu-64gb` preset,
+with a public address for SSH. Cloud-init adds your login, installs git
+and rsync, and installs uv. The disk is sized for the model weights, the
+Hugging Face cache, and a torch environment together.
+
+`terraform output ssh` and `terraform output rsync_data` print the two
+commands you need next. The public key is read from a file rather than
+pasted, so a wrong path fails the plan instead of building an instance you
+cannot log into.
+
+Two ways to stop paying. `terraform apply -var stopped=true` halts the
+instance and keeps the disk, so the downloaded weights survive for the
+next run. `terraform destroy` removes both. Stopping still bills the
+disk, so destroy once you are finished.
+
 ## Cost and runtime
 
 Generating instructions for the 987 training passages is the only paid

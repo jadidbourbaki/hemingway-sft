@@ -23,3 +23,13 @@ runs/
 .envrc
 .env
 .env.local
+
+# Terraform state and provider binaries. The lock file is committed, the same
+# way uv.lock is, so provider versions and checksums are pinned.
+infra/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+crash.log
+crash.*.log

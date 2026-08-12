@@ -1,0 +1,16 @@
+#cloud-config
+users:
+  - name: ${ssh_username}
+    groups: [sudo]
+    shell: /bin/bash
+    sudo: ["ALL=(ALL) NOPASSWD:ALL"]
+    ssh_authorized_keys:
+      - ${ssh_public_key}
+
+package_update: true
+packages:
+  - git
+  - rsync
+
+runcmd:
+  - [su, -l, "${ssh_username}", -c, "curl -LsSf https://astral.sh/uv/install.sh | sh"]

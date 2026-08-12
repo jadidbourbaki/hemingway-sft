@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and set the key path. Everything else has a default.
+ssh_public_key_path = "~/.ssh/tahini_azure.pub"
+
+# Optional overrides:
+# platform = "gpu-h100-sxm"
+# preset   = "1gpu-16vcpu-200gb"
+# stopped  = true
