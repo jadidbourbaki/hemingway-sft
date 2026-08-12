@@ -1,4 +1,4 @@
-# LoRA style fine-tuning of Gemma 4 E4B on public-domain Hemingway. Requires uv.
+# LoRA style fine-tuning of Gemma 4 12B on public-domain Hemingway. Requires uv.
 
 # List recipes.
 default:

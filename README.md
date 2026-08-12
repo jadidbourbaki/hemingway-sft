@@ -1,6 +1,6 @@
 # hemingway-sft
 
-One stage of LoRA supervised fine-tuning that teaches Gemma 4 E4B to
+One stage of LoRA supervised fine-tuning that teaches Gemma 4 12B to
 answer ordinary prose requests in Hemingway's voice.
 
 Style is a per-token property of the training completions, so supervised
@@ -93,24 +93,41 @@ committing to the full run.
 just smoke
 ```
 
-Trains on 20 examples for one epoch. The check is whether the model loads
-and takes a step at all, which is the open question for this architecture.
-Both Gemma 4 sizes carry Per-Layer Embedding tables, so a failure there is
-not fixed by changing size, and the answer would be Unsloth or a different
-model family.
+Trains on 20 examples for one epoch, to prove the model loads and takes a
+step before a real run pays for one. Run it first on a fresh host.
 
 ```
 just train
 ```
 
 Fits a LoRA adapter with TRL's `SFTTrainer` and saves it to
-`runs/hemingway-e4b`. The defaults are rank 32, three epochs, and a
+`runs/hemingway-12b`. The defaults are rank 32, three epochs, and a
 learning rate of 1e-4 on a cosine schedule. Rank 32 rather than 16
 because the run has to overwrite an existing stylistic prior rather than
-teach a fresh output format. LoRA targets the seven attention and
-feed-forward projections and leaves the Per-Layer Embedding tables
-alone, which also sidesteps the quantization edge case in that
-architecture. Weights stay in bf16 with no quantization.
+teach a fresh output format. Weights stay in bf16 with no quantization.
+
+## Why the 12B and not the E4B
+
+Gemma 4 ships an E4B at 8.00B parameters and a 12B at 11.96B, and the
+smaller one looked like the obvious pick until the checkpoints settled it.
+
+E4B uses Per-Layer Embeddings, carrying 129 tensors of per-layer embedding
+machinery with `hidden_size_per_layer_input` at 256. The 12B sets that
+field to 0 and carries none of those tensors, so it is an ordinary dense
+transformer and PEFT has nothing unusual to handle. Choosing the 12B
+removes the one architectural unknown in the project.
+
+E4B is also multimodal with separate encoders, so `q_proj` and the other
+target names appear in its vision and audio towers as well. Suffix
+matching would attach adapters there, though the cost is small: 0.8M of
+74.2M LoRA parameters, because tower tensors are numerous and tiny. The
+12B projects image patches straight into the embedding space with no
+separate tower, so all 328 of its matches sit under `language_model`.
+
+The 12B costs memory rather than risk. Its bf16 weights are 22.3GiB
+against 14.9GiB, and rank 32 gives 131.1M LoRA parameters against 74.2M,
+so roughly 30 to 35GB in total against 22 to 25GB. Both fit an L40S at
+48GB. Pass `--model google/gemma-4-E4B-it` to train the smaller one.
 
 ```
 just evaluate

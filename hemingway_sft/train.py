@@ -1,4 +1,4 @@
-"""LoRA supervised fine-tuning of Gemma 4 E4B on the generated pairs.
+"""LoRA supervised fine-tuning of Gemma 4 12B on the generated pairs.
 
 Style is a per-token property of the training completions, so plain
 supervised fine-tuning is the right tool and one stage is enough. The
@@ -16,11 +16,11 @@ from datasets import load_dataset
 from peft import LoraConfig
 from trl import SFTConfig, SFTTrainer
 
-DEFAULT_MODEL = "google/gemma-4-E4B-it"
+DEFAULT_MODEL = "google/gemma-4-12B-it"
 SMOKE_EXAMPLES = 20
 
-# The Per-Layer Embedding tables are lookup tables rather than transforms, so
-# naming the projections keeps rank where it can change the model's behavior.
+# Every projection in this model sits under `language_model`, so plain suffix
+# matching cannot reach a vision or audio encoder.
 LORA_TARGET_MODULES = (
     "q_proj",
     "k_proj",
@@ -92,7 +92,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
-    parser.add_argument("--output-dir", type=Path, default=Path("runs/hemingway-e4b"))
+    parser.add_argument("--output-dir", type=Path, default=Path("runs/hemingway-12b"))
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
     parser.add_argument("--lora-rank", type=int, default=32)
