@@ -9,8 +9,10 @@ dependencies = [
     "datasets==5.0.1",
     "huggingface-hub==1.27.0",
     "peft==0.20.0",
+    "pillow==12.3.0",
     "pydantic==2.13.4",
     "torch==2.13.0",
+    "torchvision==0.28.0",
     "transformers==5.15.0",
     "trl==1.9.2",
 ]

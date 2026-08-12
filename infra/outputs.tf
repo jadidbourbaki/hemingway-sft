@@ -1,6 +1,8 @@
 locals {
+  # The API returns the address in CIDR form, so the prefix comes off before
+  # the value reaches an ssh or rsync command.
   public_ip = try(
-    nebius_compute_v1_instance.trainer.status.network_interfaces[0].public_ip_address.address,
+    split("/", nebius_compute_v1_instance.trainer.status.network_interfaces[0].public_ip_address.address)[0],
     "PENDING",
   )
 }

@@ -1,3 +1,9 @@
+variable "nebius_profile" {
+  description = "Name of the nebius CLI profile whose credentials the provider uses."
+  type        = string
+  default     = "hayder"
+}
+
 variable "project_id" {
   description = "Nebius project that owns the instance and its disk."
   type        = string

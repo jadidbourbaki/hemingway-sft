@@ -1,5 +1,6 @@
 provider "nebius" {
   parent_id = var.project_id
+  profile   = { name = var.nebius_profile }
 }
 
 locals {

@@ -11,6 +11,10 @@ package_update: true
 packages:
   - git
   - rsync
+  # Triton JIT-compiles its CUDA helpers on first use, which needs Python
+  # headers and a compiler that the CUDA images do not ship.
+  - python3-dev
+  - build-essential
 
 runcmd:
   - [su, -l, "${ssh_username}", -c, "curl -LsSf https://astral.sh/uv/install.sh | sh"]

@@ -97,6 +97,15 @@ just smoke
 Trains on 20 examples for one epoch, to prove the model loads and takes a
 step before a real run pays for one. Run it first on a fresh host.
 
+The recipe earned its place on the first instance, where it caught four
+problems in about ten minutes of GPU time. The Gemma 4 processor needs
+pillow and torchvision, which nothing else in the tree pulls in. Triton
+JIT-compiles its CUDA helpers on first use and needs `python3-dev` and a
+compiler, which the CUDA images do not ship, so cloud-init installs them.
+And PEFT cannot wrap the `Gemma4ClippableLinear` modules in the vision and
+audio towers, so `LORA_TARGET_PATTERN` anchors to the language model rather
+than matching projection names anywhere they appear.
+
 ```
 just train
 ```

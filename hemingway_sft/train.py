@@ -19,9 +19,6 @@ from trl import SFTConfig, SFTTrainer
 DEFAULT_MODEL = "google/gemma-4-E4B-it"
 SMOKE_EXAMPLES = 20
 
-# Suffix matching also reaches this model's vision and audio towers, which take
-# no gradient from a text-only run. The towers hold 0.8M of 74.2M adapter
-# parameters, so the waste is not worth a narrower pattern.
 LORA_TARGET_MODULES = (
     "q_proj",
     "k_proj",
@@ -32,6 +29,11 @@ LORA_TARGET_MODULES = (
     "down_proj",
 )
 
+# The vision and audio towers reuse these projection names but build them from
+# Gemma4ClippableLinear, which PEFT refuses to wrap. Anchoring the pattern to
+# the language model is what makes the model buildable at all.
+LORA_TARGET_PATTERN = rf".*language_model\..*\.({'|'.join(LORA_TARGET_MODULES)})$"
+
 
 def lora_config(rank: int) -> LoraConfig:
     return LoraConfig(
@@ -40,7 +42,7 @@ def lora_config(rank: int) -> LoraConfig:
         lora_dropout=0.05,
         bias="none",
         task_type="CAUSAL_LM",
-        target_modules=list(LORA_TARGET_MODULES),
+        target_modules=LORA_TARGET_PATTERN,
     )
 
 

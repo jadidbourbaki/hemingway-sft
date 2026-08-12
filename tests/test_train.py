@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
 
-from hemingway_sft.train import LORA_TARGET_MODULES, lora_config, training_config
+from hemingway_sft.train import (
+    LORA_TARGET_MODULES,
+    LORA_TARGET_PATTERN,
+    lora_config,
+    training_config,
+)
 
 OUTPUT_DIR = Path("runs/test")
 
@@ -34,9 +40,29 @@ def test_lora_config_scales_alpha_with_the_rank(rank: int) -> None:
     assert built.lora_alpha == rank * 2
 
 
-def test_lora_config_targets_the_projections_and_nothing_else() -> None:
-    """A wildcard target would reach the Per-Layer Embedding tables."""
-    targets = lora_config(32).target_modules
-    assert isinstance(targets, list | set)
-    assert set(targets) == set(LORA_TARGET_MODULES)
+@pytest.mark.parametrize(
+    "module",
+    [
+        "model.language_model.layers.0.self_attn.q_proj",
+        "model.language_model.layers.31.mlp.down_proj",
+    ],
+)
+def test_lora_pattern_matches_the_language_model(module: str) -> None:
+    assert re.match(LORA_TARGET_PATTERN, module)
+
+
+@pytest.mark.parametrize(
+    "module",
+    [
+        "model.vision_tower.encoder.layers.0.self_attn.q_proj",
+        "model.audio_tower.layers.3.self_attn.v_proj",
+    ],
+)
+def test_lora_pattern_rejects_the_towers(module: str) -> None:
+    """The towers build these projections from a class PEFT cannot wrap."""
+    assert not re.match(LORA_TARGET_PATTERN, module)
+
+
+def test_lora_config_uses_the_anchored_pattern() -> None:
+    assert lora_config(32).target_modules == LORA_TARGET_PATTERN
     assert all(name.endswith("_proj") for name in LORA_TARGET_MODULES)
