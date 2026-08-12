@@ -1,7 +1,8 @@
 # hemingway-sft
 
-One stage of LoRA supervised fine-tuning that teaches Gemma 4 12B to
-answer ordinary prose requests in Hemingway's voice.
+One stage of LoRA supervised fine-tuning that teaches Gemma 4 E4B to
+answer ordinary prose requests in Hemingway's voice, ending in a quantized
+model that runs on a laptop.
 
 Style is a per-token property of the training completions, so supervised
 fine-tuning is the right tool and one stage is enough. Reinforcement
@@ -101,33 +102,73 @@ just train
 ```
 
 Fits a LoRA adapter with TRL's `SFTTrainer` and saves it to
-`runs/hemingway-12b`. The defaults are rank 32, three epochs, and a
+`runs/hemingway-e4b`. The defaults are rank 32, three epochs, and a
 learning rate of 1e-4 on a cosine schedule. Rank 32 rather than 16
 because the run has to overwrite an existing stylistic prior rather than
 teach a fresh output format. Weights stay in bf16 with no quantization.
 
-## Why the 12B and not the E4B
+## Getting it onto the laptop
 
-Gemma 4 ships an E4B at 8.00B parameters and a 12B at 11.96B, and the
-smaller one looked like the obvious pick until the checkpoints settled it.
+Training leaves a LoRA adapter, which loads only with the base model beside
+it and peft installed. Two steps turn that into something a laptop runs on
+its own.
 
-E4B uses Per-Layer Embeddings, carrying 129 tensors of per-layer embedding
-machinery with `hidden_size_per_layer_input` at 256. The 12B sets that
-field to 0 and carries none of those tensors, so it is an ordinary dense
-transformer and PEFT has nothing unusual to handle. Choosing the 12B
-removes the one architectural unknown in the project.
+```
+just merge
+```
 
-E4B is also multimodal with separate encoders, so `q_proj` and the other
-target names appear in its vision and audio towers as well. Suffix
-matching would attach adapters there, though the cost is small: 0.8M of
-74.2M LoRA parameters, because tower tensors are numerous and tiny. The
-12B projects image patches straight into the embedding space with no
-separate tower, so all 328 of its matches sit under `language_model`.
+Runs on the GPU host and folds the adapter into the base weights, writing
+`runs/hemingway-e4b-merged` as an ordinary model directory. Merging moves
+weights rather than computing over them, so it uses host memory and no GPU.
+The result is 14.9GiB in bf16.
 
-The 12B costs memory rather than risk. Its bf16 weights are 22.3GiB
-against 14.9GiB, and rank 32 gives 131.1M LoRA parameters against 74.2M,
-so roughly 30 to 35GB in total against 22 to 25GB. Both fit an L40S at
-48GB. Pass `--model google/gemma-4-E4B-it` to train the smaller one.
+Copy that directory back, then quantize it with MLX on the Mac:
+
+```
+rsync -av user@box:~/hemingway-sft/runs/hemingway-e4b-merged/ ./hemingway-e4b-merged/
+uv run --with mlx-lm mlx_lm.convert --hf-path ./hemingway-e4b-merged -q --mlx-path ./hemingway-mlx
+uv run --with mlx-lm mlx_lm.generate --model ./hemingway-mlx --prompt "Write a scene where two men wait at a station in the rain."
+```
+
+`--q` quantizes to 4 bits, taking the model from 14.9GiB to roughly 4.5GB,
+which leaves plenty of room on 48GB of unified memory and runs at an
+interactive pace. Quantization happens after training rather than during
+it, so the adapter learns in full precision and only the deployed copy is
+compressed.
+
+The 14.9GiB transfer is the slow part. Quantizing on the host first is
+possible, though MLX is Apple-only, so the conversion has to happen on the
+Mac either way.
+
+## Which size
+
+Gemma 4 ships an E4B at 8.00B parameters and a 12B at 11.96B. E4B is the
+on-device tier and is the default here, because the point is a model that
+runs on a laptop.
+
+| | E4B | 12B |
+|---|---|---|
+| bf16 weights | 14.9 GiB | 22.3 GiB |
+| 4-bit for a laptop | about 4.5 GB | about 7 GB |
+| LoRA parameters at rank 32 | 74.2M | 131.1M |
+| Per-Layer Embeddings | 129 tensors | none |
+
+E4B uses Per-Layer Embeddings, an architecture built for on-device
+efficiency, and its `hidden_size_per_layer_input` is 256. The 12B sets that
+field to 0 and carries none of those tensors. Unsloth's own guidance puts
+E4B LoRA at 17GB of VRAM and raises no concern about training it through
+plain PEFT, so the default trains E4B in bf16 with adapters on the seven
+projections and nothing touching the embedding tables.
+
+E4B is also multimodal with separate vision and audio encoders, whose
+projections share the target names. Adapters attach there and take no
+gradient from a text-only run, which wastes 0.8M of 74.2M adapter
+parameters. Tower tensors are numerous and small, so the waste is not worth
+a narrower pattern.
+
+Pass `--model google/gemma-4-12B-it` to train the larger one. It has no
+Per-Layer Embeddings and all its projections sit under `language_model`, so
+it is the fallback if E4B ever fails to train.
 
 ```
 just evaluate

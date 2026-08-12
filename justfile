@@ -1,4 +1,4 @@
-# LoRA style fine-tuning of Gemma 4 12B on public-domain Hemingway. Requires uv.
+# LoRA style fine-tuning of Gemma 4 E4B on public-domain Hemingway. Requires uv.
 
 # List recipes.
 default:
@@ -23,6 +23,10 @@ smoke *args:
 # Compare the adapter against the base model on unseen prompts.
 evaluate *args:
     uv run hemingway-evaluate {{ args }}
+
+# Fold the adapter into the base weights, ready to quantize for a laptop.
+merge *args:
+    uv run hemingway-merge {{ args }}
 
 # Format with ruff.
 fmt:

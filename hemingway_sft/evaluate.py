@@ -19,7 +19,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 from hemingway_sft.corpus import read_jsonl
 from hemingway_sft.style import format_profile, profile
 
-DEFAULT_MODEL = "google/gemma-4-12B-it"
+DEFAULT_MODEL = "google/gemma-4-E4B-it"
 MAX_NEW_TOKENS = 320
 TEMPERATURE = 0.9
 TOP_P = 0.9
@@ -70,7 +70,7 @@ def generate(model: Any, tokenizer: Any, prompt: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=DEFAULT_MODEL)
-    parser.add_argument("--adapter", type=Path, default=Path("runs/hemingway-12b"))
+    parser.add_argument("--adapter", type=Path, default=Path("runs/hemingway-e4b"))
     parser.add_argument("--data-dir", type=Path, default=Path("data"))
     args = parser.parse_args()
 

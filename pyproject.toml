@@ -19,6 +19,7 @@ hemingway-corpus = "hemingway_sft.corpus:main"
 hemingway-instructions = "hemingway_sft.reverse_instructions:main"
 hemingway-train = "hemingway_sft.train:main"
 hemingway-evaluate = "hemingway_sft.evaluate:main"
+hemingway-merge = "hemingway_sft.merge:main"
 
 [build-system]
 requires = ["hatchling"]
