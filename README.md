@@ -261,11 +261,27 @@ uv run --with mlx-lm mlx_lm.convert --hf-path jadidbourbaki/iceberg-1 -q --mlx-p
 uv run --with mlx-lm mlx_lm.generate --model ./iceberg-1-mlx --prompt "Write a scene at a station in the rain."
 ```
 
-`convert` downloads the weights and writes a quantized copy, and `-q` sets 4
-bits. The model goes from 14.9GiB to roughly 4.5GB, which leaves room on 48GB of
-unified memory and runs at an interactive pace. Quantization happens after
-training, so the adapter learns in full precision and only the deployed copy is
-compressed.
+`convert` downloads the weights and writes a copy MLX can load, and `-q` sets 4
+bits. Quantizing is optional. Dropping `-q` keeps bf16 at 14.9GiB, which peaks
+at 15.0GB of unified memory and generates at about 24 tokens per second on an
+M4 Pro. The 4-bit copy is 3.9GB at 4.501 bits per weight and roughly four times
+faster. Quality is indistinguishable on these prompts, so quantize for speed
+rather than to make the model fit.
+
+**Pass the sampling settings `evaluate.py` uses, or the model repeats itself.**
+
+```
+mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." --temp 0.9 --top-p 0.9 --max-tokens 500
+```
+
+At `--temp 0.6` with no top-p, generation degenerates into a loop within a few
+lines. Both bf16 and 4-bit do it, so the cause is greedy sampling rather than
+quantization. At temperature 0.9 with top-p 0.9 both produce clean prose.
+
+Gemma 4 also has a thinking channel that MLX does not parse, so a run may open
+with a literal `<|channel>thought` block and a numbered plan before the prose
+begins. Budget enough tokens to get past it. `chat_template.jinja` carries an
+`enable_thinking` flag, which is the place to look for turning it off.
 
 ## Comparing against the base model
 
@@ -273,12 +289,29 @@ Two conversions give a fair local comparison, because the only difference
 between them is the fine-tuning:
 
 ```
-uv run --with mlx-lm mlx_lm.convert --hf-path google/gemma-4-E4B-it -q --mlx-path ./gemma-4-e4b-mlx
 uv run --with mlx-lm mlx_lm.convert --hf-path jadidbourbaki/iceberg-1 -q --mlx-path ./iceberg-1-mlx
 ```
 
-Each source is 14.9GiB and each output is roughly 4.5GB, so about 39GB of disk
-covers both.
+The tuned model converts directly. The base model does not, and the reason is
+worth knowing. `num_kv_shared_layers` is 18, so the last 18 of E4B's 42 layers
+share their keys and values with earlier layers. `Gemma4TextAttention` builds no
+`k_proj` there at all:
+
+```python
+if not self.is_kv_shared_layer:
+    self.k_proj = nn.Linear(...)
+```
+
+Google's checkpoint ships those weights anyway. Transformers ignores the extras
+and MLX rejects them, which fails the conversion on 54 unexpected tensors, being
+18 layers times `k_proj`, `v_proj`, and `k_norm`. Dropping them before
+converting fixes it, and they are inert in both runtimes so nothing is lost.
+
+`iceberg-1` never has the problem. Transformers drops those tensors when `merge`
+saves the model, which is why it carries 2,076 tensors against Google's 2,130.
+
+Convert both at the same precision, because the comparison is only fair when
+quantization is held constant.
 
 `mlx-community/gemma-4-E4B-it-qat-4bit` is a 6.4GiB download and saves most of
 that, but it is quantization-aware trained while the conversion above is
