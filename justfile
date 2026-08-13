@@ -28,6 +28,16 @@ evaluate *args:
 merge *args:
     uv run hemingway-merge {{ args }}
 
+# Convert a model for local inference on Apple silicon. Needs no GPU.
+convert *args:
+    uv run --with mlx-lm hemingway-convert {{ args }}
+
+# Generate locally with the settings the model was evaluated under.
+generate model prompt *args:
+    uv run --with mlx-lm mlx_lm.generate --model {{ model }} --prompt {{ quote(prompt) }} \
+      --temp 0.9 --top-p 0.9 --max-tokens 500 \
+      --chat-template-config '{"enable_thinking": false}' {{ args }}
+
 # Profile generated prose against the held-out book. Reads stdin.
 style *args:
     uv run hemingway-style {{ args }}

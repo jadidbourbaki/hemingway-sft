@@ -242,7 +242,8 @@ so destroy once you are finished.
 ## Local inference
 
 Training leaves a LoRA adapter, which loads only with the base model beside it
-and peft installed. Two steps turn that into something a laptop runs on its own.
+and peft installed. Two recipes turn that into something a laptop runs on its
+own.
 
 ```
 just merge
@@ -253,89 +254,79 @@ Runs on the GPU host and folds the adapter into the base weights, writing
 weights rather than computing over them, so it uses host memory and no GPU. The
 result is 14.9GiB in bf16.
 
-Then quantize with MLX on the Mac. Pulling from the Hub beats copying from the
-host, because their CDN is faster than an ssh pipe by a wide margin:
-
 ```
-uv run --with mlx-lm mlx_lm.convert --hf-path jadidbourbaki/iceberg-1 -q --mlx-path ./iceberg-1-mlx
-uv run --with mlx-lm mlx_lm.generate --model ./iceberg-1-mlx --prompt "Write a scene at a station in the rain."
+just convert --model jadidbourbaki/iceberg-1 --output-dir iceberg-1-mlx
 ```
 
-`convert` downloads the weights and writes a copy MLX can load, and `-q` sets 4
-bits. Quantizing is optional. Dropping `-q` keeps bf16 at 14.9GiB, which peaks
-at 15.0GB of unified memory and generates at about 24 tokens per second on an
-M4 Pro. The 4-bit copy is 3.9GB at 4.501 bits per weight and roughly four times
-faster. Quality is indistinguishable on these prompts, so quantize for speed
-rather than to make the model fit.
+Converts a model for MLX on the Mac, pulling from the Hub if the model is not
+already local. MLX is injected for the single run, so it never enters the
+lockfile and the Linux training host is unaffected. Quantization defaults to 4
+bits, and `--bits 0` keeps bf16.
 
-**Pass the sampling settings `evaluate.py` uses, or the model repeats itself.**
-
-```
-mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." --temp 0.9 --top-p 0.9 --max-tokens 500
-```
-
-At `--temp 0.6` with no top-p, generation degenerates into a loop within a few
-lines. Both bf16 and 4-bit do it, so the cause is greedy sampling rather than
-quantization. At temperature 0.9 with top-p 0.9 both produce clean prose.
-
-**Turn thinking off, or a plan eats the token budget before any prose.**
+Quantizing is optional. bf16 is 14.9GiB, peaks at 15.0GB of unified memory, and
+generates at about 24 tokens per second on an M4 Pro. The 4-bit copy is 3.9GB at
+4.501 bits per weight and reaches about 70 tokens per second. Quality is
+indistinguishable on these prompts, so quantize for speed rather than to make
+the model fit.
 
 ```
-mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." \
-  --temp 0.9 --top-p 0.9 --chat-template-config '{"enable_thinking": false}'
+just generate iceberg-1-mlx "Write a scene where two men wait at a station in the rain."
 ```
 
-Without that flag a run opens with a literal `<|channel>thought` block and a
-numbered plan, which can consume 250 tokens before the story starts. The chat
-template defaults `enable_thinking` to false, and `mlx_lm` passes true anyway,
-so the flag has to be set at the call. With it off, a complete passage takes
-about 136 tokens at 72 tokens per second.
+Generates with the three settings the model needs, because each one alone
+produces a bad result.
+
+Temperature 0.9 with top-p 0.9 matches how `evaluate.py` measured the model. At
+temperature 0.6 with no top-p, generation degenerates into a repeated line
+within a few sentences. Both bf16 and 4-bit do it, so greedy sampling is the
+cause rather than quantization.
+
+`enable_thinking` is false, which keeps a numbered plan out of the token budget.
+The chat template already defaults the flag to false and MLX passes true anyway,
+so the recipe sets it at the call. Without it a run can spend 250 tokens
+planning before the story starts.
 
 The GPU path is unaffected. Transformers honours the template default, and
-`evaluate.py` now passes `enable_thinking=False` explicitly so a library default
+`evaluate.py` passes `enable_thinking=False` explicitly so a library default
 cannot change that.
 
 ## Comparing against the base model
 
-Two conversions give a fair local comparison, because the only difference
-between them is the fine-tuning:
-
 ```
-uv run --with mlx-lm mlx_lm.convert --hf-path jadidbourbaki/iceberg-1 -q --mlx-path ./iceberg-1-mlx
+just convert --model google/gemma-4-E4B-it --output-dir gemma-4-e4b-mlx
 ```
 
-The tuned model converts directly. The base model does not, and the reason is
-worth knowing. `num_kv_shared_layers` is 18, so the last 18 of E4B's 42 layers
-share their keys and values with earlier layers. `Gemma4TextAttention` builds no
-`k_proj` there at all:
+Convert both at the same width, because a comparison across two quantization
+methods measures the quantization as well as the fine-tuning.
+`mlx-community/gemma-4-E4B-it-qat-4bit` is a smaller download at 6.4GiB, and it
+is quantization-aware trained rather than converted afterwards, so it gets an
+advantage the tuned model does not have.
+
+The base model needs one extra step, which `just convert` performs
+automatically. `num_kv_shared_layers` is 18, so the last 18 of E4B's 42 layers
+share their keys and values with earlier layers, and `Gemma4TextAttention`
+builds no `k_proj` there at all:
 
 ```python
 if not self.is_kv_shared_layer:
     self.k_proj = nn.Linear(...)
 ```
 
-Google's checkpoint ships those weights anyway. Transformers ignores the extras
-and MLX rejects them, which fails the conversion on 54 unexpected tensors, being
-18 layers times `k_proj`, `v_proj`, and `k_norm`. Dropping them before
-converting fixes it, and they are inert in both runtimes so nothing is lost.
+Google's checkpoint ships those weights regardless. Transformers ignores the
+extras and MLX rejects them, so a plain conversion fails on 54 unexpected
+tensors, being 18 layers times `k_proj`, `v_proj`, and `k_norm`. `just convert`
+drops them first and loses nothing, because neither runtime reads them.
 
-`iceberg-1` never has the problem. Transformers drops those tensors when `merge`
-saves the model, which is why it carries 2,076 tensors against Google's 2,130.
-
-Convert both at the same precision, because the comparison is only fair when
-quantization is held constant.
-
-`mlx-community/gemma-4-E4B-it-qat-4bit` is a 6.4GiB download and saves most of
-that, but it is quantization-aware trained while the conversion above is
-post-hoc. Quantization-aware training loses less quality, so a comparison
-across the two measures quantization method as well as fine-tuning. Use it to
-hear the tuned model quickly rather than to judge the run.
+`iceberg-1` never has the problem. Transformers omits those tensors when `merge`
+saves the model, which is why it carries 2,076 against Google's 2,130. The
+recipe detects that and converts the source directly rather than making a
+pointless 15GB copy.
 
 Then profile either model's output locally, with no GPU:
 
 ```
-mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." | just style --name tuned
-mlx_lm.generate --model ./gemma-4-e4b-mlx --prompt "..." | just style --name base
+just generate iceberg-1-mlx "Write a scene at a station." | just style --name tuned
+just generate gemma-4-e4b-mlx "Write a scene at a station." | just style --name base
 ```
 
 `just style` prints the held-out book's numbers above whatever you pipe in, so

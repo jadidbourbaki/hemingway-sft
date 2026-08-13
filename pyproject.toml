@@ -11,6 +11,7 @@ dependencies = [
     "peft==0.20.0",
     "pillow==12.3.0",
     "pydantic==2.13.4",
+    "safetensors==0.8.0",
     "torch==2.13.0",
     "torchvision==0.28.0",
     "transformers==5.15.0",
@@ -26,6 +27,7 @@ hemingway-merge = "hemingway_sft.merge:main"
 hemingway-publish = "hemingway_sft.publish:main"
 hemingway-memorization = "hemingway_sft.memorization:main"
 hemingway-style = "hemingway_sft.style:main"
+hemingway-convert = "hemingway_sft.local:main"
 
 [build-system]
 requires = ["hatchling"]
