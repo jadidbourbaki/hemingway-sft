@@ -267,6 +267,35 @@ unified memory and runs at an interactive pace. Quantization happens after
 training, so the adapter learns in full precision and only the deployed copy is
 compressed.
 
+## Comparing against the base model
+
+Two conversions give a fair local comparison, because the only difference
+between them is the fine-tuning:
+
+```
+uv run --with mlx-lm mlx_lm.convert --hf-path google/gemma-4-E4B-it -q --mlx-path ./gemma-4-e4b-mlx
+uv run --with mlx-lm mlx_lm.convert --hf-path jadidbourbaki/iceberg-1 -q --mlx-path ./iceberg-1-mlx
+```
+
+Each source is 14.9GiB and each output is roughly 4.5GB, so about 39GB of disk
+covers both.
+
+`mlx-community/gemma-4-E4B-it-qat-4bit` is a 6.4GiB download and saves most of
+that, but it is quantization-aware trained while the conversion above is
+post-hoc. Quantization-aware training loses less quality, so a comparison
+across the two measures quantization method as well as fine-tuning. Use it to
+hear the tuned model quickly rather than to judge the run.
+
+Then profile either model's output locally, with no GPU:
+
+```
+mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." | just style --name tuned
+mlx_lm.generate --model ./gemma-4-e4b-mlx --prompt "..." | just style --name base
+```
+
+`just style` prints the held-out book's numbers above whatever you pipe in, so
+the target sits beside the measurement. Pass `--name` to label the row.
+
 ## Publishing
 
 ```

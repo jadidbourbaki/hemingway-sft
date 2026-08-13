@@ -25,6 +25,7 @@ hemingway-evaluate = "hemingway_sft.evaluate:main"
 hemingway-merge = "hemingway_sft.merge:main"
 hemingway-publish = "hemingway_sft.publish:main"
 hemingway-memorization = "hemingway_sft.memorization:main"
+hemingway-style = "hemingway_sft.style:main"
 
 [build-system]
 requires = ["hatchling"]

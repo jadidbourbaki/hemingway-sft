@@ -10,9 +10,14 @@ apart from the script that loads a model.
 
 from __future__ import annotations
 
+import argparse
 import re
 import statistics
+import sys
 from dataclasses import dataclass
+from pathlib import Path
+
+from hemingway_sft.corpus import read_jsonl
 
 # Two fixed-width branches, because a sentence can end on the terminal mark or
 # on a closing quote after it, and Python allows no variable-width lookbehind.
@@ -51,3 +56,27 @@ def format_profile(name: str, style: StyleProfile) -> str:
         f"sentence words {style.mean_sentence_words:5.1f}  "
         f"adverbs {style.adverb_rate:.4f}"
     )
+
+
+def main() -> None:
+    """Profile text from a file or standard input, beside the held-out reference.
+
+    Reading standard input lets a local generation be piped straight in, so the
+    same numbers are available on a laptop as on the training host.
+    """
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--samples", type=Path, default=None)
+    parser.add_argument("--name", default="samples")
+    parser.add_argument("--data-dir", type=Path, default=Path("data"))
+    args = parser.parse_args()
+
+    text = args.samples.read_text(encoding="utf-8") if args.samples else sys.stdin.read()
+    if not text.strip():
+        raise ValueError("no text given")
+
+    passages_path = args.data_dir / "passages.jsonl"
+    if passages_path.exists():
+        held = [p.text for p in read_jsonl(passages_path) if p.split == "heldout"]
+        if held:
+            print(format_profile("hemingway", profile("\n\n".join(held))))
+    print(format_profile(args.name, profile(text)))

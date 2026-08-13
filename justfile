@@ -28,6 +28,10 @@ evaluate *args:
 merge *args:
     uv run hemingway-merge {{ args }}
 
+# Profile generated prose against the held-out book. Reads stdin.
+style *args:
+    uv run hemingway-style {{ args }}
+
 # Check generated prose for verbatim spans from the training novels.
 memorization *args:
     uv run hemingway-memorization {{ args }}
