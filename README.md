@@ -162,6 +162,11 @@ finds, by looking for `adapter_config.json` rather than taking a flag, so an
 adapter gets `library_name: peft` and peft usage while merged weights get
 plain transformers usage.
 
+Pass `--card-only` to replace the card on a repository that already holds its
+weights, which avoids re-uploading gigabytes to fix prose. Whether that
+repository holds an adapter is read from the repository itself, because the
+local weights are usually deleted once they are up.
+
 Uploading needs a Hugging Face token with write access, which is the first
 point in this project that requires credentials. Downloading Gemma needs
 none, since the repositories are ungated.

@@ -69,67 +69,93 @@ tags:
 
 # {name}
 
-{name} answers ordinary prose requests in Ernest Hemingway's voice. One stage
-of LoRA supervised fine-tuning on {base_model}, with no reinforcement learning
-and no preference tuning.
+{name} writes prose in Ernest Hemingway's voice. Ask it for a scene and it
+answers in flat declarative sentences, carried by dialogue.
 
-The name comes from Hemingway's iceberg theory, that the dignity of movement
-of an iceberg is due to only one eighth of it being above water.
+The model is {base_model} with one stage of supervised fine-tuning applied
+through low-rank adaptation (LoRA). No reinforcement learning ran here, and no
+preference tuning ran either.
 
-## Using it
+The name comes from Hemingway's iceberg theory. He held that a story draws its
+force from what the writer leaves out, so only one eighth of it shows above
+the water.
+
+## Usage
 
 {usage}
 
-## How it was trained
+## Training Method
 
-Style is a per-token property of the training completions, so supervised
-fine-tuning is the right tool and one stage is enough.
+Style lives in every token of a training completion. Supervised fine-tuning
+learns from every token, so one supervised stage is enough for this job.
 
-The training pairs were built by reverse instructions, the technique from
-Köksal et al. 2023. Claude read each human-written passage and wrote the
-instruction that would have produced it, and the passage became the target
-completion. Training on raw novel text instead would produce a model that
-continues Hemingway rather than one that answers a request in his voice.
+The training pairs came from reverse instructions, the technique in Köksal et
+al. 2023. Claude read each Hemingway passage and wrote the instruction that
+would have produced it. The passage then became the target completion for that
+instruction.
 
-Instructions that named the author or described the writing style were
-dropped, because an instruction asking for terse sentences teaches the voice
-as something to switch on when asked rather than as a default.
+The direction matters. Training on raw novel text produces a model that
+continues a Hemingway passage. Reverse instructions produce a model that
+answers a request in his voice.
 
-LoRA at rank 32 on the attention and feed-forward projections, three epochs,
-bf16 with no quantization.
+Instructions that named the author or described the style were dropped. An
+instruction asking for terse sentences teaches the voice as a mode to switch
+on when asked. The goal was a default voice instead.
 
-## Training data
+The adapter is rank 32 on the attention and feed-forward projections. Training
+ran for three epochs in bfloat16 with no quantization.
 
-Three Hemingway novels, chosen because United States copyright runs 95 years
-from publication and all three were published before 1930:
+## Training Data
+
+Three Hemingway novels supplied every training completion. United States
+copyright runs 95 years from publication, and all three novels appeared before
+1930.
 
 {books}
 
-The corpus is public domain in the United States. Copyright in the European
-Union and the United Kingdom runs for the life of the author plus 70 years,
-and Hemingway died in 1961, so the same books remain protected there until
-2032. The training set is not published for that reason.
+The corpus is public domain in the United States. Copyright elsewhere runs
+longer. The European Union and the United Kingdom grant the author's life plus
+70 years, and Hemingway died in 1961. The same three novels stay protected
+there until 2032. The training set is therefore not published.
 
 ## Limitations
 
-The training set is 918 examples over three epochs, which is small enough
-that near-verbatim reproduction of training passages is plausible. Treat
-output as potentially quoting the source novels rather than as original
-prose.
+The training set holds 918 examples, and the model saw each one three times.
+918 examples is few enough that near-verbatim reproduction can happen. Treat
+any output as a possible quotation from the source novels.
 
-Style tuning of this kind narrows a model. Expect weaker instruction
-following outside prose requests than the base model offers.
+Style tuning narrows a model. Expect weaker instruction following on requests
+that are not for prose.
 
 ## License
 
-This model is a Model Derivative of Gemma and is subject to the [Gemma Terms
-of Use]({GEMMA_TERMS_URL}). The `license: gemma` declaration on this
-repository carries that agreement to every recipient, and the use
-restrictions in Section 3.2 of those terms carry forward to anyone who uses
-or further distributes this model.
+This model is a Model Derivative of Gemma. The [Gemma Terms of Use]({GEMMA_TERMS_URL})
+govern it. The `license: gemma` declaration on this repository carries that
+agreement to every recipient.
+
+The use restrictions in Section 3.2 of those terms pass forward. Anyone who
+uses this model or redistributes it is bound by them.
 
 The weights are modified from {base_model}.
 """
+
+
+def publish_card(repo: str, base_model: str) -> str:
+    """Replace only the card on a repository that already holds its weights.
+
+    Whether the repository holds an adapter is read from the repository itself,
+    because the weights that would answer the question locally are usually
+    deleted once they are uploaded.
+    """
+    api = HfApi()
+    adapter = "adapter_config.json" in api.list_repo_files(repo, repo_type="model")
+    api.upload_file(
+        path_or_fileobj=model_card(repo, base_model, adapter).encode("utf-8"),
+        path_in_repo="README.md",
+        repo_id=repo,
+        repo_type="model",
+    )
+    return f"https://huggingface.co/{repo}"
 
 
 def publish(source: Path, repo: str, base_model: str, private: bool) -> str:
@@ -152,7 +178,17 @@ def main() -> None:
     parser.add_argument("--repo", default="jadidbourbaki/iceberg-1")
     parser.add_argument("--base-model", default=BASE_MODEL)
     parser.add_argument("--private", action="store_true")
+    parser.add_argument(
+        "--card-only",
+        action="store_true",
+        help="Replace the card on a repository that already holds its weights.",
+    )
     args = parser.parse_args()
+
+    if args.card_only:
+        url = publish_card(args.repo, args.base_model)
+        print(f"card updated on {url}")
+        return
 
     url = publish(args.source, args.repo, args.base_model, args.private)
     print(f"published to {url}")

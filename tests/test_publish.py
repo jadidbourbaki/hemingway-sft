@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from hemingway_sft.publish import GEMMA_TERMS_URL, NOTICE, is_adapter, model_card, publish
+from hemingway_sft.publish import (
+    GEMMA_TERMS_URL,
+    NOTICE,
+    is_adapter,
+    model_card,
+    publish,
+    publish_card,
+)
 
 REPO = "jadidbourbaki/iceberg-1"
 BASE = "google/gemma-4-E4B-it"
@@ -58,6 +65,52 @@ def test_model_card_explains_why_the_training_set_stays_unpublished(adapter: boo
         assert str(year) in card
 
 
+@pytest.mark.parametrize("adapter", [True, False])
+def test_model_card_carries_the_agreed_section_names(adapter: bool) -> None:
+    headings = [
+        line for line in model_card(REPO, BASE, adapter).splitlines() if line.startswith("## ")
+    ]
+    assert headings == [
+        "## Usage",
+        "## Training Method",
+        "## Training Data",
+        "## Limitations",
+        "## License",
+    ]
+
+
+def card_prose(adapter: bool) -> str:
+    """The card text with frontmatter, headings, lists, and code fences removed."""
+    lines = model_card(REPO, BASE, adapter).splitlines()
+    body = lines[lines.index("---", 1) + 1 :]
+    prose, fenced = [], False
+    for line in body:
+        if line.startswith("```"):
+            fenced = not fenced
+            continue
+        if fenced or not line or line.startswith(("#", "-", "|")):
+            continue
+        prose.append(line)
+    return " ".join(prose)
+
+
+@pytest.mark.parametrize("adapter", [True, False])
+def test_model_card_prose_uses_no_dashes_or_semicolons(adapter: bool) -> None:
+    prose = card_prose(adapter)
+    assert "—" not in prose
+    assert "–" not in prose
+    assert ";" not in prose
+
+
+@pytest.mark.parametrize("adapter", [True, False])
+def test_model_card_prose_keeps_sentences_to_one_clause_break(adapter: bool) -> None:
+    """More than one comma in a sentence means it should have been two sentences."""
+    for sentence in card_prose(adapter).split(". "):
+        if "http" in sentence:
+            continue
+        assert sentence.count(",") <= 1, sentence
+
+
 def test_model_card_gives_peft_usage_for_an_adapter() -> None:
     card = model_card(REPO, BASE, adapter=True)
     assert "library_name: peft" in card
@@ -101,3 +154,45 @@ def test_publish_writes_the_card_and_notice_before_upload(
         "private": True,
         "exist_ok": True,
     }
+
+
+def test_publish_card_reads_the_artifact_kind_from_the_repository(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The local weights are gone by then, so only the repository can answer."""
+    sent: dict[str, object] = {}
+
+    class FakeApi:
+        def list_repo_files(self, repo_id: str, repo_type: str) -> list[str]:
+            return ["adapter_config.json", "adapter_model.safetensors"]
+
+        def upload_file(self, **kwargs: object) -> None:
+            sent.update(kwargs)
+
+    monkeypatch.setattr("hemingway_sft.publish.HfApi", FakeApi)
+
+    assert publish_card(REPO, BASE) == f"https://huggingface.co/{REPO}"
+    assert sent["path_in_repo"] == "README.md"
+    payload = sent["path_or_fileobj"]
+    assert isinstance(payload, bytes)
+    assert b"library_name: peft" in payload
+
+
+def test_publish_card_writes_a_plain_card_for_merged_weights(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sent: dict[str, object] = {}
+
+    class FakeApi:
+        def list_repo_files(self, repo_id: str, repo_type: str) -> list[str]:
+            return ["model.safetensors", "config.json"]
+
+        def upload_file(self, **kwargs: object) -> None:
+            sent.update(kwargs)
+
+    monkeypatch.setattr("hemingway_sft.publish.HfApi", FakeApi)
+
+    publish_card(REPO, BASE)
+    payload = sent["path_or_fileobj"]
+    assert isinstance(payload, bytes)
+    assert b"library_name: transformers" in payload
