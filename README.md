@@ -214,19 +214,21 @@ from the `nebius` CLI profile, so no keys are configured in the repository.
 
 ```
 cd infra
-cp terraform.tfvars.example terraform.tfvars   # set ssh_public_key_path
+cp terraform.tfvars.example terraform.tfvars
 terraform init
 terraform apply
 ```
+
+Four values go in `terraform.tfvars`, and the example file names the command
+that finds each one. The profile comes from `nebius profile list`, the project
+from `nebius config list`, the subnet from `nebius vpc subnet list`, and the
+last is the path to your SSH public key.
 
 The module creates a 200GiB `NETWORK_SSD` boot disk from an Ubuntu 24.04 CUDA
 image and one `gpu-l40s-a` instance on the `1gpu-16vcpu-64gb` preset, with a
 public address for SSH. Cloud-init adds your login and installs git, rsync, uv,
 and the build toolchain Triton needs. The disk is sized to hold the model
 weights, the Hugging Face cache, and a torch environment together.
-
-The project and subnet defaults in `variables.tf` are the author's, so set your
-own before running it.
 
 `terraform output ssh` and `terraform output rsync_data` print the two commands
 you need next. The public key is read from a file rather than pasted, so a wrong

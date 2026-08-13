@@ -1,5 +1,13 @@
-# Copy to terraform.tfvars and set the key path. Everything else has a default.
-ssh_public_key_path = "~/.ssh/tahini_azure.pub"
+# Copy to terraform.tfvars and fill in. All four are required.
+#
+#   nebius_profile  -> nebius profile list
+#   project_id      -> nebius config list      (the parent-id field)
+#   subnet_id       -> nebius vpc subnet list
+#
+nebius_profile      = "default"
+project_id          = "project-..."
+subnet_id           = "vpcsubnet-..."
+ssh_public_key_path = "~/.ssh/id_ed25519.pub"
 
 # Optional overrides:
 # platform = "gpu-h100-sxm"

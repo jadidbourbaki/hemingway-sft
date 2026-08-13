@@ -1,19 +1,16 @@
 variable "nebius_profile" {
-  description = "Name of the nebius CLI profile whose credentials the provider uses."
+  description = "Name of the nebius CLI profile whose credentials the provider uses. Run `nebius profile list`."
   type        = string
-  default     = "hayder"
 }
 
 variable "project_id" {
-  description = "Nebius project that owns the instance and its disk."
+  description = "Nebius project that owns the instance and its disk. Run `nebius config list`."
   type        = string
-  default     = "project-e00gk5d1pr000ft6e4szkh"
 }
 
 variable "subnet_id" {
-  description = "Subnet the instance attaches to. The project's default subnet works."
+  description = "Subnet the instance attaches to. Run `nebius vpc subnet list` and take the default one."
   type        = string
-  default     = "vpcsubnet-e00dcqcz3sfyya9ack"
 }
 
 variable "name" {
@@ -60,7 +57,7 @@ variable "ssh_public_key_path" {
 variable "ssh_username" {
   description = "Login created on the instance."
   type        = string
-  default     = "hayder"
+  default     = "trainer"
 }
 
 variable "stopped" {
