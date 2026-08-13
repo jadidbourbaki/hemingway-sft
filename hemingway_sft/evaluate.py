@@ -48,9 +48,12 @@ def load_model(base: str, adapter: Path | None) -> tuple[Any, Any]:
 
 
 def generate(model: Any, tokenizer: Any, prompt: str) -> str:
+    # Thinking is off by default in the template, and stating it here keeps a
+    # library default from spending the token budget on a plan instead of prose.
     inputs = tokenizer.apply_chat_template(
         [{"role": "user", "content": prompt}],
         add_generation_prompt=True,
+        enable_thinking=False,
         return_tensors="pt",
         return_dict=True,
     ).to(model.device)

@@ -278,10 +278,22 @@ At `--temp 0.6` with no top-p, generation degenerates into a loop within a few
 lines. Both bf16 and 4-bit do it, so the cause is greedy sampling rather than
 quantization. At temperature 0.9 with top-p 0.9 both produce clean prose.
 
-Gemma 4 also has a thinking channel that MLX does not parse, so a run may open
-with a literal `<|channel>thought` block and a numbered plan before the prose
-begins. Budget enough tokens to get past it. `chat_template.jinja` carries an
-`enable_thinking` flag, which is the place to look for turning it off.
+**Turn thinking off, or a plan eats the token budget before any prose.**
+
+```
+mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." \
+  --temp 0.9 --top-p 0.9 --chat-template-config '{"enable_thinking": false}'
+```
+
+Without that flag a run opens with a literal `<|channel>thought` block and a
+numbered plan, which can consume 250 tokens before the story starts. The chat
+template defaults `enable_thinking` to false, and `mlx_lm` passes true anyway,
+so the flag has to be set at the call. With it off, a complete passage takes
+about 136 tokens at 72 tokens per second.
+
+The GPU path is unaffected. Transformers honours the template default, and
+`evaluate.py` now passes `enable_thinking=False` explicitly so a library default
+cannot change that.
 
 ## Comparing against the base model
 
