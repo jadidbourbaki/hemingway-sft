@@ -121,8 +121,18 @@ there until 2032. The training set is therefore not published.
 ## Limitations
 
 The training set holds 918 examples, and the model saw each one three times.
-918 examples is few enough that near-verbatim reproduction can happen. Treat
-any output as a possible quotation from the source novels.
+Repetition at that scale can teach a model to reproduce its source verbatim, so
+the output was measured for it.
+
+Hemingway sets the threshold. *In Our Time* never trained the model, and its
+longest verbatim span shared with the three training novels is seven words. It
+shares no eight word span at all. An eight word match is therefore
+reproduction rather than ordinary English or an author's habit.
+
+Generated samples shared no span of six words or more with the 192,990 word
+training corpus. No memorisation was detected. The repository ships the
+measurement as `hemingway-memorization`, so the claim can be rechecked against
+any output rather than taken on trust.
 
 Style tuning narrows a model. Expect weaker instruction following on requests
 that are not for prose.

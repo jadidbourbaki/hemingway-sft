@@ -28,6 +28,10 @@ evaluate *args:
 merge *args:
     uv run hemingway-merge {{ args }}
 
+# Check generated prose for verbatim spans from the training novels.
+memorization *args:
+    uv run hemingway-memorization {{ args }}
+
 # Push an artifact to the Hub with the notices Gemma requires. Needs a write token.
 publish *args:
     uv run hemingway-publish {{ args }}

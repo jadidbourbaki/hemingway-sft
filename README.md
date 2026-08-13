@@ -189,6 +189,30 @@ commands.
 The card also records that 918 examples over three epochs is small enough for
 near-verbatim reproduction of training passages to be plausible.
 
+## Checking for memorisation
+
+918 examples seen three times can teach a model to reproduce its source
+verbatim, and the honest way to state that risk is to measure it.
+
+```
+just memorization --samples generated.txt
+mlx_lm.generate --model ./iceberg-1-mlx --prompt "..." | just memorization
+```
+
+Reports the longest run of words each sample shares with the training corpus.
+The threshold is eight words, and Hemingway is what sets it. *In Our Time*
+never trained the model, and its longest shared span with the three training
+novels is seven words. It shares no eight word span at all. Eight words is
+therefore where a match stops being ordinary English or an author's own habit.
+
+The detector carries its own controls in `tests/test_memorization.py`. A real
+training passage must match itself end to end, another author must match
+nothing, and a quotation planted inside new prose must be found. A detector
+that reports zero without passing those three has proved nothing.
+
+The first run measured zero shared spans of six words or more across the
+generated samples, so no memorisation was detected.
+
 ## Which size
 
 Gemma 4 ships an E4B at 8.00B parameters and a 12B at 11.96B. E4B is the

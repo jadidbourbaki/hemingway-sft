@@ -48,11 +48,18 @@ def test_model_card_names_how_the_agreement_reaches_a_recipient(adapter: bool) -
 
 
 @pytest.mark.parametrize("adapter", [True, False])
-def test_model_card_discloses_the_memorisation_risk(adapter: bool) -> None:
-    """918 examples over three epochs can reproduce source passages verbatim."""
+def test_model_card_reports_the_memorisation_measurement(adapter: bool) -> None:
+    """The card states a measured result, not a hedge about a risk it never checked."""
     card = model_card(REPO, BASE, adapter)
-    assert "near-verbatim" in card
     assert "918" in card
+    assert "seven words" in card
+    assert "No memorisation was detected" in card
+
+
+@pytest.mark.parametrize("adapter", [True, False])
+def test_model_card_names_the_tool_that_rechecks_the_claim(adapter: bool) -> None:
+    card = model_card(REPO, BASE, adapter)
+    assert "hemingway-memorization" in card
 
 
 @pytest.mark.parametrize("adapter", [True, False])
